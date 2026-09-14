@@ -1,2 +1,19 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>留言栏 · 我的小天地</title><link rel="stylesheet" href="local.css"></head><body class="detail-page"><header><a class="brand" href="index.html">← 返回森林主页</a></header><main><section class="message-panel"><h1>树上的小信箱</h1><p>路过这里，留下一句话吧。<br>当前留言仅保存在此浏览器中，还不会公开给其他访客。</p><form class="message-form" id="message-form"><label for="nickname">称谓</label><input id="nickname" maxlength="30" placeholder="路过的旅人"><label for="contact">联系方式</label><input id="contact" name="contact" maxlength="120" placeholder="邮箱、微信或其他联系方式（选填）"><label for="message">留言</label><textarea id="message" maxlength="2000" required placeholder="分享一个想法，或是打个招呼……"></textarea><button type="submit">投递留言 ✉</button></form><p id="message-status" role="status"></p><div id="message-list"></div></section></main><script src="messages.js"></script></body></html>
-
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>树上的小信箱 · 我的小天地</title><link rel="stylesheet" href="local.css">
+<style>
+body.mailbox-page{background:linear-gradient(#edf5e5c9,#edf5e5ec),url('assets/forest.jpeg') center/cover fixed}
+.mailbox-page header{background:#f5faeecf;padding:20px 6%;min-height:70px}
+.mailbox-page main{max-width:880px;padding:28px 22px 50px}
+.mail-intro{text-align:center;padding:12px 0 24px}.mail-seal{display:grid;place-items:center;width:64px;height:64px;margin:auto;border-radius:50%;background:#e4edcf;color:#7a9165;font-size:32px;border:1px solid #c9d8b5;box-shadow:0 4px 15px #58704312}
+.mail-intro h1{font-size:32px;letter-spacing:.06em;line-height:1.5;margin:15px 0 12px}.mail-intro p{font-size:13px;line-height:2;color:#728265}
+.survey-shell{background:#fffdf5;border:1px solid #d6e1c7;border-radius:22px;padding:12px;box-shadow:0 12px 35px #536c3e15;overflow:hidden}.survey-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px 18px;color:#81916f;font-size:11px}.survey-top a{color:#557747;text-decoration:underline;text-underline-offset:4px;padding:8px}
+iframe{display:block;border:0;border-radius:12px;width:100%;height:850px;background:white}
+.mail-note{text-align:center;font-size:12px;line-height:1.9;color:#75856a;margin:20px 0}.back-home{display:block;width:max-content;margin:22px auto 0;border:1px solid #c4d5b2;border-radius:24px;padding:12px 23px;background:#eef5e5;color:#617d4d;font-size:13px;transition:background .2s,transform .2s}.back-home:hover{background:#dfeccd}.back-home:active{transform:translateY(2px)}
+@media(max-width:720px){.mailbox-page main{padding:18px 12px 30px}.mail-intro h1{font-size:27px}.survey-shell{padding:7px;border-radius:16px}.survey-top{padding:5px 6px 12px;font-size:10px}iframe{height:920px}.mail-intro p{font-size:12px}}
+</style></head>
+<body class="mailbox-page"><header><a class="brand" href="index.html">❧ 返回森林主页</a></header><main>
+<div class="mail-intro"><span class="mail-seal" aria-hidden="true">✉</span><h1>树上的小信箱</h1><p>路过这里，留下一句话吧，交个朋友吧。<br>把想说的话，放进这封小小的来信。</p></div>
+<section class="survey-shell" aria-label="留言问卷"><div class="survey-top"><span>一封来信 · 一次相遇</span><a href="https://wj.qq.com/s2/27887047/dl6x/" target="_blank" rel="noopener noreferrer">打开独立问卷 ↗</a></div><iframe src="https://wj.qq.com/s2/27887047/dl6x/" title="留言问卷：称谓、联系方式、留言" referrerpolicy="strict-origin-when-cross-origin"></iframe></section>
+<p class="mail-note">留言通过腾讯问卷提交，由站主在问卷后台查看。<br>如果上方未显示问卷，请点击「打开独立问卷」。</p><a class="back-home" href="index.html">← 回到树下，继续逛逛</a>
+</main></body></html>
