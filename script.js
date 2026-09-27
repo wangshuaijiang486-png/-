@@ -51,3 +51,129 @@ const revealObserver = new IntersectionObserver((entries) => {
   entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
 }, { threshold: 0.08 });
 document.querySelectorAll('.reveal').forEach((node) => revealObserver.observe(node));
+
+// The shared player is appended to script.js when publishing.
+(() => {
+  const audio = new Audio();
+  const parts = Array.from({ length: 22 }, (_, index) => `music/part-${String(index).padStart(2, '0')}.mp3`);
+  const downloads = parts.map((path) => fetch(path).then((response) => {
+    if (!response.ok) throw new Error(`Music file ${path} could not load`);
+    return response.arrayBuffer();
+  }));
+  let audioReady;
+  const streamable = Boolean(window.MediaSource && MediaSource.isTypeSupported('audio/mpeg'));
+  if (streamable) {
+    const source = new MediaSource();
+    audio.src = URL.createObjectURL(source);
+    audioReady = new Promise((resolve, reject) => {
+      source.addEventListener('sourceopen', async () => {
+        try {
+          const buffer = source.addSourceBuffer('audio/mpeg');
+          for (const download of downloads) {
+            const bytes = await download;
+            await new Promise((done, failed) => {
+              buffer.addEventListener('updateend', done, { once: true });
+              buffer.addEventListener('error', failed, { once: true });
+              buffer.appendBuffer(bytes);
+            });
+            resolve(); // Playback can start while the rest is still loading.
+          }
+          if (source.readyState === 'open') source.endOfStream();
+        } catch (error) { reject(error); }
+      }, { once: true });
+    });
+  } else {
+    audioReady = Promise.all(downloads).then((buffers) => {
+      audio.src = URL.createObjectURL(new Blob(buffers, { type: 'audio/mpeg' }));
+    });
+  }
+  const sessionKey = 'forest-music-session';
+  const preferenceKey = 'forest-music-preferences';
+  let session = {};
+  let preferences = {};
+  try { session = JSON.parse(sessionStorage.getItem(sessionKey) || '{}'); } catch (_) {}
+  try { preferences = JSON.parse(localStorage.getItem(preferenceKey) || '{}'); } catch (_) {}
+  audio.loop = true;
+  audio.preload = 'auto';
+  audio.volume = Number.isFinite(preferences.volume) ? preferences.volume : 0.35;
+  audio.muted = Boolean(preferences.muted);
+  audio.addEventListener('loadedmetadata', () => {
+    if (Number.isFinite(session.time) && session.time < audio.duration) audio.currentTime = session.time;
+  }, { once: true });
+
+  const widget = document.createElement('div');
+  widget.className = 'music-widget';
+  widget.innerHTML = `<button class="music-toggle" type="button" aria-label="播放背景音乐"><span class="music-icon" aria-hidden="true">♫</span><span class="music-state">播放音乐</span></button><button class="music-settings-toggle" type="button" aria-label="调整音乐" aria-expanded="false" title="调整音乐">⌄</button><div class="music-panel" hidden><p class="music-track">冬与春与我（纯享）</p><label for="music-volume">音量 <span class="music-volume-value"></span></label><input id="music-volume" type="range" min="0" max="100"><button class="music-mute" type="button">静音</button><p class="music-error" role="status" aria-live="polite"></p></div>`;
+  document.body.append(widget);
+  const playButton = widget.querySelector('.music-toggle');
+  const state = widget.querySelector('.music-state');
+  const panelButton = widget.querySelector('.music-settings-toggle');
+  const panel = widget.querySelector('.music-panel');
+  const volume = widget.querySelector('#music-volume');
+  const volumeValue = widget.querySelector('.music-volume-value');
+  const muteButton = widget.querySelector('.music-mute');
+  const error = widget.querySelector('.music-error');
+  volume.value = Math.round(audio.volume * 100);
+
+  const savePreferences = () => localStorage.setItem(preferenceKey, JSON.stringify({ volume: audio.volume, muted: audio.muted }));
+  const saveSession = () => sessionStorage.setItem(sessionKey, JSON.stringify({ started: session.started, paused: session.paused, time: audio.currentTime || 0 }));
+  const refresh = () => {
+    const playing = !audio.paused;
+    state.textContent = playing ? (audio.muted ? '音乐已静音' : '音乐播放中') : '播放音乐';
+    playButton.setAttribute('aria-label', playing ? '暂停背景音乐' : '播放背景音乐');
+    muteButton.textContent = audio.muted ? '取消静音' : '静音';
+    volumeValue.textContent = `${volume.value}%`;
+    widget.classList.toggle('playing', playing);
+  };
+  const play = async () => {
+    session.started = true;
+    session.paused = false;
+    saveSession();
+    try {
+      const started = streamable ? audio.play() : null;
+      await audioReady;
+      await (started || audio.play());
+      error.textContent = '';
+    } catch (_) {
+      error.textContent = '轻点“播放音乐”即可继续收听';
+      session.paused = true;
+      saveSession();
+    }
+    refresh();
+  };
+  playButton.addEventListener('click', () => {
+    if (audio.paused) play();
+    else { audio.pause(); session.paused = true; saveSession(); refresh(); }
+  });
+  panelButton.addEventListener('click', () => {
+    panel.hidden = !panel.hidden;
+    panelButton.setAttribute('aria-expanded', String(!panel.hidden));
+  });
+  volume.addEventListener('input', () => {
+    audio.volume = Number(volume.value) / 100;
+    if (audio.volume > 0) audio.muted = false;
+    savePreferences();
+    refresh();
+  });
+  muteButton.addEventListener('click', () => {
+    audio.muted = !audio.muted;
+    savePreferences();
+    refresh();
+  });
+  audio.addEventListener('error', () => { error.textContent = '音乐加载失败，请稍后重试'; refresh(); });
+  window.addEventListener('pagehide', saveSession);
+
+  const enter = document.querySelector('#enter-site');
+  if (enter) {
+    enter.addEventListener('click', async (event) => {
+      event.preventDefault();
+      await play();
+      window.location.href = enter.href;
+    });
+  } else if (session.started && !session.paused) {
+    // Browsers may block playback after a page navigation. The play button remains available.
+    play();
+  }
+  refresh();
+})();
+
