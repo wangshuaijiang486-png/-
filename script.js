@@ -1,56 +1,88 @@
-const menuToggle = document.querySelector('.mobile-menu');
-const sideNav = document.querySelector('.side-nav');
-const toast = document.querySelector('#save-toast');
-
-document.querySelector('#enter-site')?.addEventListener('click', () => {
-  document.body.classList.add('entered');
-  window.scrollTo({ top: 0, behavior: 'instant' });
-});
-
-menuToggle?.addEventListener('click', () => {
-  const open = sideNav.classList.toggle('open');
-  menuToggle.setAttribute('aria-expanded', String(open));
-});
-
-document.querySelectorAll('.side-nav a').forEach((link) => {
-  link.addEventListener('click', () => {
-    sideNav.classList.remove('open');
-    menuToggle?.setAttribute('aria-expanded', 'false');
-  });
-});
-
-const editable = [...document.querySelectorAll('[data-editable]')];
 const storageKey = 'wang-shuai-jiang-forest-site';
-let saved = {};
-try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) { saved = {}; }
-editable.forEach((node) => {
-  const value = saved[node.dataset.editable];
-  if (value) node.innerHTML = value;
-});
+const pageNames = new Set(['index.html', 'home.html', 'about.html', 'projects.html', 'contact.html']);
+let sectionObserver;
+let revealObserver;
 
-document.querySelector('#save-content')?.addEventListener('click', () => {
-  const next = {};
-  editable.forEach((node) => { next[node.dataset.editable] = node.innerHTML; });
-  localStorage.setItem(storageKey, JSON.stringify(next));
-  toast.textContent = '内容已保存到这台设备';
-  toast.classList.add('show');
-  window.setTimeout(() => toast.classList.remove('show'), 2200);
-});
+function setupPage() {
+  sectionObserver?.disconnect();
+  revealObserver?.disconnect();
+  const menuToggle = document.querySelector('.mobile-menu');
+  const sideNav = document.querySelector('.side-nav');
+  const toast = document.querySelector('#save-toast');
 
-const sections = [...document.querySelectorAll('.section-anchor')];
-const navLinks = [...document.querySelectorAll('.side-nav a')];
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (!entry.isIntersecting) return;
-    navLinks.forEach((link) => link.classList.toggle('active', link.getAttribute('href') === `#${entry.target.id}`));
+  menuToggle?.addEventListener('click', () => {
+    const open = sideNav.classList.toggle('open');
+    menuToggle.setAttribute('aria-expanded', String(open));
   });
-}, { rootMargin: '-35% 0px -55% 0px' });
-sections.forEach((section) => observer.observe(section));
+  document.querySelectorAll('.side-nav a').forEach((link) => {
+    link.addEventListener('click', () => {
+      sideNav.classList.remove('open');
+      menuToggle?.setAttribute('aria-expanded', 'false');
+    });
+  });
 
-const revealObserver = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
-}, { threshold: 0.08 });
-document.querySelectorAll('.reveal').forEach((node) => revealObserver.observe(node));
+  const editable = [...document.querySelectorAll('[data-editable]')];
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) {}
+  editable.forEach((node) => {
+    const value = saved[node.dataset.editable];
+    if (value) node.innerHTML = value;
+  });
+  document.querySelector('#save-content')?.addEventListener('click', () => {
+    const next = {};
+    editable.forEach((node) => { next[node.dataset.editable] = node.innerHTML; });
+    localStorage.setItem(storageKey, JSON.stringify(next));
+    toast.textContent = '内容已保存到这台设备';
+    toast.classList.add('show');
+    window.setTimeout(() => toast.classList.remove('show'), 2200);
+  });
+
+  const sections = [...document.querySelectorAll('.section-anchor')];
+  const navLinks = [...document.querySelectorAll('.side-nav a')];
+  sectionObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      navLinks.forEach((link) => link.classList.toggle('active', link.getAttribute('href') === `#${entry.target.id}`));
+    });
+  }, { rootMargin: '-35% 0px -55% 0px' });
+  sections.forEach((section) => sectionObserver.observe(section));
+
+  revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach((node) => revealObserver.observe(node));
+}
+
+async function navigateWithinSite(destination, addHistory = true) {
+  const url = new URL(destination, location.href);
+  const response = await fetch(url.pathname, { credentials: 'same-origin' });
+  if (!response.ok) throw new Error('Page could not load');
+  const next = new DOMParser().parseFromString(await response.text(), 'text/html');
+  const widget = document.querySelector('.music-widget');
+  if (!widget || !next.querySelector('script[src="script.js"]')) throw new Error('Page is outside the music section');
+  const nodes = [...next.body.children].filter((node) => node.tagName !== 'SCRIPT');
+  document.body.replaceChildren(...nodes, widget);
+  document.body.className = next.body.className;
+  document.title = next.title;
+  if (addHistory) history.pushState({}, '', url);
+  setupPage();
+  if (url.hash) document.getElementById(decodeURIComponent(url.hash.slice(1)))?.scrollIntoView();
+  else window.scrollTo(0, 0);
+}
+
+document.addEventListener('click', (event) => {
+  const link = event.target.closest('a[href]');
+  if (!link || link.id === 'enter-site' || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || link.target || link.hasAttribute('download')) return;
+  const url = new URL(link.href);
+  if (url.origin !== location.origin || !pageNames.has(url.pathname.split('/').pop())) return;
+  if (url.pathname === location.pathname && url.hash) return;
+  event.preventDefault();
+  navigateWithinSite(url.href).catch(() => { location.href = url.href; });
+});
+window.addEventListener('popstate', () => {
+  navigateWithinSite(location.href, false).catch(() => location.reload());
+});
+setupPage();
 
 // The shared player is appended to script.js when publishing.
 (() => {
@@ -163,14 +195,14 @@ document.querySelectorAll('.reveal').forEach((node) => revealObserver.observe(no
   audio.addEventListener('error', () => { error.textContent = '音乐加载失败，请稍后重试'; refresh(); });
   window.addEventListener('pagehide', saveSession);
 
-  const enter = document.querySelector('#enter-site');
-  if (enter) {
-    enter.addEventListener('click', async (event) => {
-      event.preventDefault();
-      await play();
-      window.location.href = enter.href;
-    });
-  } else if (session.started && !session.paused) {
+  document.addEventListener('click', async (event) => {
+    const enter = event.target.closest('#enter-site');
+    if (!enter || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    await play();
+    navigateWithinSite(enter.href).catch(() => { window.location.href = enter.href; });
+  });
+  if (!document.querySelector('#enter-site') && session.started && !session.paused) {
     // Browsers may block playback after a page navigation. The play button remains available.
     play();
   }
