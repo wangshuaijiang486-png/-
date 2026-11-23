@@ -195,11 +195,11 @@ setupPage();
   audio.addEventListener('error', () => { error.textContent = '音乐加载失败，请稍后重试'; refresh(); });
   window.addEventListener('pagehide', saveSession);
 
-  document.addEventListener('click', async (event) => {
+  document.addEventListener('click', (event) => {
     const enter = event.target.closest('#enter-site');
     if (!enter || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    await play();
+    play();
     navigateWithinSite(enter.href).catch(() => { window.location.href = enter.href; });
   });
   if (!document.querySelector('#enter-site') && session.started && !session.paused) {
