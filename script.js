@@ -57,7 +57,7 @@ function setupPage() {
     else if (!window.albumMapScriptRequested) {
       window.albumMapScriptRequested = true;
       const script = document.createElement('script');
-      script.src = 'album-map.js';
+      script.src = 'album-map.js?v=20261123-2';
       script.onerror = () => {
         const status = document.querySelector('#album-map-status');
         if (status) status.textContent = '地图组件加载失败，请刷新后重试。';
@@ -73,7 +73,7 @@ async function navigateWithinSite(destination, addHistory = true) {
   if (!response.ok) throw new Error('Page could not load');
   const next = new DOMParser().parseFromString(await response.text(), 'text/html');
   const widget = document.querySelector('.music-widget');
-  if (!widget || !next.querySelector('script[src="script.js"]')) throw new Error('Page is outside the music section');
+  if (!widget || !next.querySelector('script[src^="script.js"]')) throw new Error('Page is outside the music section');
   window.unmountAlbumMap?.();
   const nodes = [...next.body.children].filter((node) => node.tagName !== 'SCRIPT');
   document.body.replaceChildren(...nodes, widget);
@@ -103,10 +103,10 @@ setupPage();
 (() => {
   const audio = new Audio();
   const parts = Array.from({ length: 22 }, (_, index) => `music/part-${String(index).padStart(2, '0')}.mp3`);
-  const downloads = parts.map((path) => fetch(path).then((response) => {
+  const fetchPart = (path) => fetch(path).then((response) => {
     if (!response.ok) throw new Error(`Music file ${path} could not load`);
     return response.arrayBuffer();
-  }));
+  });
   let audioReady;
   const streamable = Boolean(window.MediaSource && MediaSource.isTypeSupported('audio/mpeg'));
   if (streamable) {
@@ -116,7 +116,10 @@ setupPage();
       source.addEventListener('sourceopen', async () => {
         try {
           const buffer = source.addSourceBuffer('audio/mpeg');
-          for (const download of downloads) {
+          let nextDownload = fetchPart(parts[0]);
+          for (let index = 0; index < parts.length; index += 1) {
+            const download = nextDownload;
+            nextDownload = parts[index + 1] ? fetchPart(parts[index + 1]) : null;
             const bytes = await download;
             await new Promise((done, failed) => {
               buffer.addEventListener('updateend', done, { once: true });
@@ -130,9 +133,11 @@ setupPage();
       }, { once: true });
     });
   } else {
-    audioReady = Promise.all(downloads).then((buffers) => {
+    audioReady = (async () => {
+      const buffers = [];
+      for (const part of parts) buffers.push(await fetchPart(part));
       audio.src = URL.createObjectURL(new Blob(buffers, { type: 'audio/mpeg' }));
-    });
+    })();
   }
   const sessionKey = 'forest-music-session';
   const preferenceKey = 'forest-music-preferences';

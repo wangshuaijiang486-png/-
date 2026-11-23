@@ -13,6 +13,9 @@
   let previewMarker = null;
   let searchMarker = null;
   let searchRequest = null;
+  let pendingSearchFeature = null;
+  let placeIndex = null;
+  let slowMapTimer = null;
   let photos = [];
   let draftIds = new Set();
   let choosingPoint = false;
@@ -25,7 +28,8 @@
   }
 
   function focusSearchResult(feature) {
-    if (!map) return;
+    if (!map) { pendingSearchFeature = feature; return; }
+    pendingSearchFeature = null;
     const [lng, lat] = feature.geometry.coordinates;
     const type = feature.properties?.osm_value;
     const zoom = ['city', 'town', 'village', 'suburb'].includes(type) ? 11 : type === 'state' ? 6 : 14;
@@ -40,18 +44,33 @@
     const results = document.querySelector('#album-search-results');
     const query = input.value.trim();
     if (!query) return;
-    if (!map) { results.hidden = false; results.textContent = '地图仍在加载，请稍后再试。'; return; }
     searchRequest?.abort();
     searchRequest = new AbortController();
     const request = searchRequest;
     results.hidden = false;
     results.textContent = '正在查找地点…';
     try {
+      if (!placeIndex) {
+        const localResponse = await fetch('album-places.json', { signal: request.signal });
+        if (localResponse.ok) placeIndex = (await localResponse.json()).places;
+      }
+      if (request !== searchRequest || !mountedNode) return;
+      const normalized = query.replace(/(省|市|自治区|自治州|特别行政区)$/u, '');
+      const localMatches = Object.entries(placeIndex || {})
+        .filter(([name]) => name === normalized || name === query || name.includes(normalized))
+        .sort(([a], [b]) => Number(b === normalized || b === query) - Number(a === normalized || a === query))
+        .slice(0, 6)
+        .map(([name, point]) => ({ properties: { name, osm_value: 'city' }, geometry: { type: 'Point', coordinates: [point.lng, point.lat] } }));
+      if (localMatches.length) { showSearchResults(localMatches, results); return; }
+      results.textContent = '正在查询更详细的地点…';
       const url = new URL('https://photon.komoot.io/api/');
       url.searchParams.set('q', query);
       url.searchParams.set('limit', '6');
       ['CN', 'HK', 'MO', 'TW'].forEach((code) => url.searchParams.append('countrycode', code));
-      const response = await fetch(url, { signal: request.signal });
+      const timeout = setTimeout(() => request.abort(), 8000);
+      let response;
+      try { response = await fetch(url, { signal: request.signal }); }
+      finally { clearTimeout(timeout); }
       if (!response.ok) throw new Error('search failed');
       const data = await response.json();
       if (request !== searchRequest || !mountedNode) return;
@@ -60,10 +79,19 @@
         Array.isArray(feature.geometry.coordinates) &&
         feature.geometry.coordinates.length >= 2 &&
         feature.geometry.coordinates.every(Number.isFinite));
+      showSearchResults(matches, results);
+    } catch (error) {
+      if (request === searchRequest && mountedNode) {
+        results.textContent = error.name === 'AbortError' ? '查询超时，请试试城市名称，或在地图上手动查找。' : '地点搜索暂时不可用，请稍后重试，或在地图上手动查找。';
+      }
+    }
+  }
+
+  function showSearchResults(matches, results) {
       results.replaceChildren();
       if (!matches.length) { results.textContent = '没有找到匹配地点，试试更完整的地名，或直接在地图上放大查找。'; return; }
       const caption = document.createElement('span');
-      caption.textContent = '选择地点：';
+      caption.textContent = map ? '选择地点：' : '已找到地点，地图加载后自动定位：';
       results.append(caption);
       matches.forEach((feature, index) => {
         const button = document.createElement('button');
@@ -76,11 +104,6 @@
         results.append(button);
         if (index === 0) button.click();
       });
-    } catch (error) {
-      if (error.name !== 'AbortError' && request === searchRequest && mountedNode) {
-        results.textContent = '地点搜索暂时不可用，请稍后重试，或在地图上手动查找。';
-      }
-    }
   }
 
   function openDatabase() {
@@ -229,7 +252,6 @@
 
   function prepareEditor(image = '', title = '') {
     const dialog = document.querySelector('#album-editor');
-    document.querySelector('#album-place-search').addEventListener('submit', searchPlace, { signal });
     existingImage = image;
     choosingPoint = false;
     chosenPoint = null;
@@ -269,6 +291,7 @@
     const signal = listeners.signal;
     const status = document.querySelector('#album-map-status');
     const dialog = document.querySelector('#album-editor');
+    document.querySelector('#album-place-search').addEventListener('submit', searchPlace, { signal });
     document.querySelector('#album-add').addEventListener('click', () => prepareEditor(), { signal });
     document.querySelectorAll('.album-place-existing').forEach((button) => {
       button.addEventListener('click', () => {
@@ -328,9 +351,16 @@
       window.albumMapLibre = library;
       map = new library.Map({ container, style: MAP_STYLE, center: [104, 35], zoom: 3.2, minZoom: 2, maxZoom: 18, attributionControl: true });
       showChina();
+      if (pendingSearchFeature) focusSearchResult(pendingSearchFeature);
       map.addControl(new library.NavigationControl({ showCompass: false }), 'top-right');
-      map.once('render', () => { status.hidden = true; });
-      map.on('load', () => { status.hidden = true; renderPhotos(); });
+      slowMapTimer = setTimeout(() => {
+        if (!status.hidden) {
+          status.textContent = '底图加载较慢；仍可搜索地名，稍后会自动显示。';
+          status.classList.add('slow');
+        }
+      }, 5000);
+      map.once('render', () => { clearTimeout(slowMapTimer); status.hidden = true; });
+      map.on('load', () => { clearTimeout(slowMapTimer); status.hidden = true; renderPhotos(); });
       map.on('click', (event) => {
         if (choosingPoint) {
           choosingPoint = false;
@@ -354,6 +384,8 @@
 
   function unmount() {
     generation += 1;
+    clearTimeout(slowMapTimer);
+    slowMapTimer = null;
     searchRequest?.abort();
     searchRequest = null;
     listeners?.abort();
@@ -362,6 +394,7 @@
     previewMarker = null;
     searchMarker?.remove();
     searchMarker = null;
+    pendingSearchFeature = null;
     markers.forEach((marker) => marker.remove());
     markers = [];
     map?.remove();
