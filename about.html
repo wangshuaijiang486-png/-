@@ -54,14 +54,44 @@
       <section class="about-hubs" aria-label="我的相册与账号">
         <article id="gallery" class="profile-panel gallery-panel reveal visible">
           <div class="profile-panel-heading">
-            <div><p class="tiny-label">PHOTO ALBUM</p><h2>个人相册</h2></div>
-            <span>记录我眼中的风景</span>
+          <div><p class="tiny-label">MAP ALBUM</p><h2>地图相册</h2></div>
+            <span>把沿途的风景放回它发生的地方</span>
           </div>
-          <div class="photo-grid">
-            <figure class="photo-main"><img src="avatar-sunset.jpg" alt="粉紫色晚霞下的河景"><figcaption contenteditable="true" data-editable="photo-caption-1">晚霞落进河面的时候</figcaption></figure>
-            <figure><img src="forest-home.jpg" alt="阳光下的绿色森林"><figcaption contenteditable="true" data-editable="photo-caption-2">森林里的光</figcaption></figure>
-            <figure><img src="forest.jpeg" alt="森林与自然风景"><figcaption contenteditable="true" data-editable="photo-caption-3">在自然里慢慢呼吸</figcaption></figure>
+          <p class="map-album-intro">从中国地图出发，放大到你想记录的地点。点击地图可逐级放大；点照片标记，便能翻阅那里的故事。</p>
+          <div class="map-album-toolbar">
+            <button id="album-add" type="button">＋ 添加照片</button>
+            <button id="album-reset-view" type="button">回到中国全图</button>
+            <button id="album-export" type="button">导出我的标记</button>
           </div>
+          <div class="map-album-layout">
+            <div class="map-album-map-wrap">
+              <div id="album-map" aria-label="中国地图相册，可缩放并点击照片标记" role="region"></div>
+              <p id="album-map-status" class="map-album-status" role="status">地图加载中…</p>
+            </div>
+            <aside class="map-album-sidebar" aria-label="地图照片">
+              <div id="album-selected" class="album-selected"><span class="album-selected-glyph">✦</span><h3>从地图开始探索</h3><p>放大地图，选择一个地点，看看那里留下的照片。</p></div>
+              <div class="album-list-heading"><strong>已标记的照片</strong><span id="album-count">0 张</span></div>
+              <div id="album-photo-list" class="album-photo-list"><p class="album-empty">还没有标记照片。你可以先添加一张。</p></div>
+            </aside>
+          </div>
+          <details class="album-unplaced"><summary>现有照片 · 待标记拍摄地点</summary>
+            <div class="photo-grid">
+              <figure class="photo-main"><img src="avatar-sunset.jpg" alt="粉紫色晚霞下的河景"><figcaption contenteditable="true" data-editable="photo-caption-1">晚霞落进河面的时候</figcaption><button type="button" class="album-place-existing" data-image="avatar-sunset.jpg" data-caption="photo-caption-1">放到地图上</button></figure>
+              <figure><img src="forest-home.jpg" alt="阳光下的绿色森林"><figcaption contenteditable="true" data-editable="photo-caption-2">森林里的光</figcaption><button type="button" class="album-place-existing" data-image="forest-home.jpg" data-caption="photo-caption-2">放到地图上</button></figure>
+              <figure><img src="forest.jpeg" alt="森林与自然风景"><figcaption contenteditable="true" data-editable="photo-caption-3">在自然里慢慢呼吸</figcaption><button type="button" class="album-place-existing" data-image="forest.jpeg" data-caption="photo-caption-3">放到地图上</button></figure>
+            </div>
+          </details>
+          <p class="album-local-note">新照片和地点先保存在当前浏览器。导出标记文件后，可将它用于更新公开网站，让所有访客看到。</p>
+          <dialog id="album-editor" class="album-editor"><form id="album-editor-form" method="dialog">
+            <div class="album-editor-head"><h3>添加一张地图照片</h3><button type="button" id="album-editor-close" aria-label="关闭">×</button></div>
+            <label>照片标题<input id="album-title" name="title" maxlength="60" required placeholder="例如：冬日的街角"></label>
+            <label>地点名称<input id="album-place" name="place" maxlength="80" required placeholder="例如：北京市东城区"></label>
+            <label id="album-file-label">选择照片<input id="album-file" name="photo" type="file" accept="image/*"></label>
+            <p class="album-pick-tip">先放大到拍摄地点，再点击地图选点。选中后这里会显示坐标。</p>
+            <output id="album-coordinates">尚未选择地点</output>
+            <p id="album-editor-error" class="album-editor-error" role="alert"></p>
+            <div class="album-editor-actions"><button type="button" id="album-pick-place">在地图上选点</button><button type="submit">保存照片</button></div>
+          </form></dialog>
         </article>
 
         <article id="bilibili" class="profile-panel account-panel bilibili-panel reveal visible">
@@ -93,3 +123,4 @@
   <script src="script.js"></script>
 </body>
 </html>
+

@@ -51,6 +51,20 @@ function setupPage() {
     entries.forEach((entry) => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
   }, { threshold: 0.08 });
   document.querySelectorAll('.reveal').forEach((node) => revealObserver.observe(node));
+
+  if (document.querySelector('#album-map')) {
+    if (window.mountAlbumMap) window.mountAlbumMap();
+    else if (!window.albumMapScriptRequested) {
+      window.albumMapScriptRequested = true;
+      const script = document.createElement('script');
+      script.src = 'album-map.js';
+      script.onerror = () => {
+        const status = document.querySelector('#album-map-status');
+        if (status) status.textContent = '地图组件加载失败，请刷新后重试。';
+      };
+      document.head.append(script);
+    }
+  }
 }
 
 async function navigateWithinSite(destination, addHistory = true) {
@@ -60,6 +74,7 @@ async function navigateWithinSite(destination, addHistory = true) {
   const next = new DOMParser().parseFromString(await response.text(), 'text/html');
   const widget = document.querySelector('.music-widget');
   if (!widget || !next.querySelector('script[src="script.js"]')) throw new Error('Page is outside the music section');
+  window.unmountAlbumMap?.();
   const nodes = [...next.body.children].filter((node) => node.tagName !== 'SCRIPT');
   document.body.replaceChildren(...nodes, widget);
   document.body.className = next.body.className;
@@ -208,4 +223,5 @@ setupPage();
   }
   refresh();
 })();
+
 
