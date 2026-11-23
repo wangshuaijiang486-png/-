@@ -11,11 +11,77 @@
   let listeners = null;
   let markers = [];
   let previewMarker = null;
+  let searchMarker = null;
+  let searchRequest = null;
   let photos = [];
   let draftIds = new Set();
   let choosingPoint = false;
   let chosenPoint = null;
   let existingImage = '';
+
+  function placeName(feature) {
+    const p = feature.properties || {};
+    return [...new Set([p.name, p.city, p.county, p.state].filter(Boolean))].join(' · ') || '未命名地点';
+  }
+
+  function focusSearchResult(feature) {
+    if (!map) return;
+    const [lng, lat] = feature.geometry.coordinates;
+    const type = feature.properties?.osm_value;
+    const zoom = ['city', 'town', 'village', 'suburb'].includes(type) ? 11 : type === 'state' ? 6 : 14;
+    searchMarker?.remove();
+    searchMarker = new window.albumMapLibre.Marker({ color: '#db805c' }).setLngLat([lng, lat]).addTo(map);
+    map.flyTo({ center: [lng, lat], zoom, essential: true });
+  }
+
+  async function searchPlace(event) {
+    event.preventDefault();
+    const input = document.querySelector('#album-search-input');
+    const results = document.querySelector('#album-search-results');
+    const query = input.value.trim();
+    if (!query) return;
+    if (!map) { results.hidden = false; results.textContent = '地图仍在加载，请稍后再试。'; return; }
+    searchRequest?.abort();
+    searchRequest = new AbortController();
+    const request = searchRequest;
+    results.hidden = false;
+    results.textContent = '正在查找地点…';
+    try {
+      const url = new URL('https://photon.komoot.io/api/');
+      url.searchParams.set('q', query);
+      url.searchParams.set('limit', '6');
+      ['CN', 'HK', 'MO', 'TW'].forEach((code) => url.searchParams.append('countrycode', code));
+      const response = await fetch(url, { signal: request.signal });
+      if (!response.ok) throw new Error('search failed');
+      const data = await response.json();
+      if (request !== searchRequest || !mountedNode) return;
+      const matches = (data.features || []).filter((feature) =>
+        feature.geometry?.type === 'Point' &&
+        Array.isArray(feature.geometry.coordinates) &&
+        feature.geometry.coordinates.length >= 2 &&
+        feature.geometry.coordinates.every(Number.isFinite));
+      results.replaceChildren();
+      if (!matches.length) { results.textContent = '没有找到匹配地点，试试更完整的地名，或直接在地图上放大查找。'; return; }
+      const caption = document.createElement('span');
+      caption.textContent = '选择地点：';
+      results.append(caption);
+      matches.forEach((feature, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = placeName(feature);
+        button.addEventListener('click', () => {
+          focusSearchResult(feature);
+          results.querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === button));
+        }, { signal: listeners.signal });
+        results.append(button);
+        if (index === 0) button.click();
+      });
+    } catch (error) {
+      if (error.name !== 'AbortError' && request === searchRequest && mountedNode) {
+        results.textContent = '地点搜索暂时不可用，请稍后重试，或在地图上手动查找。';
+      }
+    }
+  }
 
   function openDatabase() {
     return new Promise((resolve, reject) => {
@@ -163,6 +229,7 @@
 
   function prepareEditor(image = '', title = '') {
     const dialog = document.querySelector('#album-editor');
+    document.querySelector('#album-place-search').addEventListener('submit', searchPlace, { signal });
     existingImage = image;
     choosingPoint = false;
     chosenPoint = null;
@@ -287,10 +354,14 @@
 
   function unmount() {
     generation += 1;
+    searchRequest?.abort();
+    searchRequest = null;
     listeners?.abort();
     listeners = null;
     previewMarker?.remove();
     previewMarker = null;
+    searchMarker?.remove();
+    searchMarker = null;
     markers.forEach((marker) => marker.remove());
     markers = [];
     map?.remove();

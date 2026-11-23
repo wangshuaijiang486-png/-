@@ -58,6 +58,12 @@
             <span>把沿途的风景放回它发生的地方</span>
           </div>
           <p class="map-album-intro">从中国地图出发，放大到你想记录的地点。点击地图可逐级放大；点照片标记，便能翻阅那里的故事。</p>
+          <form id="album-place-search" class="album-place-search" role="search">
+            <label for="album-search-input">搜索地名</label>
+            <input id="album-search-input" type="search" name="place" maxlength="100" placeholder="输入城市、区县或景点，例如：北京故宫" autocomplete="off" required>
+            <button type="submit">定位</button>
+          </form>
+          <div id="album-search-results" class="album-search-results" role="status" aria-live="polite" hidden></div>
           <div class="map-album-toolbar">
             <button id="album-add" type="button">＋ 添加照片</button>
             <button id="album-reset-view" type="button">回到中国全图</button>
